@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AR/VR App</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap');
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --neon: #00ffe7; --neon2: #ff00c8;
+      --dark: #050a12; --mid: #0d1a2a; --text: #c8e8ff;
+    }
+    body {
+      background: var(--dark); color: var(--text);
+      font-family: 'Share Tech Mono', monospace;
+      min-height: 100vh; overflow-x: hidden;
+    }
+    body::before {
+      content: ''; position: fixed; inset: 0;
+      background-image:
+        linear-gradient(rgba(0,255,231,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,255,231,0.04) 1px, transparent 1px);
+      background-size: 40px 40px; pointer-events: none; z-index: 0;
+    }
+    header {
+      position: relative; z-index: 10;
+      text-align: center; padding: 24px 20px 16px;
+      border-bottom: 1px solid rgba(0,255,231,0.15);
+    }
+    header h1 {
+      font-family: 'Orbitron', sans-serif;
+      font-size: clamp(1.2rem, 4vw, 2.2rem); font-weight: 900;
+      background: linear-gradient(90deg, var(--neon), var(--neon2));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      letter-spacing: 0.08em; text-transform: uppercase;
+    }
+    header p { margin-top: 5px; font-size: 0.72rem; opacity: 0.45; letter-spacing: 0.15em; }
+
+    #canvas-wrap {
+      position: relative; z-index: 5; width: 100%; max-width: 860px;
+      margin: 20px auto 0; aspect-ratio: 16/9;
+      border: 1px solid rgba(0,255,231,0.2);
+      box-shadow: 0 0 40px rgba(0,255,231,0.08);
+      overflow: hidden; border-radius: 4px;
+    }
+    #canvas-wrap canvas { width: 100% !important; height: 100% !important; display: block; }
+
+    .corner { position: absolute; width: 18px; height: 18px; z-index: 20; }
+    .corner.tl { top:-1px; left:-1px; border-top:2px solid var(--neon); border-left:2px solid var(--neon); }
+    .corner.tr { top:-1px; right:-1px; border-top:2px solid var(--neon); border-right:2px solid var(--neon); }
+    .corner.bl { bottom:-1px; left:-1px; border-bottom:2px solid var(--neon); border-left:2px solid var(--neon); }
+    .corner.br { bottom:-1px; right:-1px; border-bottom:2px solid var(--neon); border-right:2px solid var(--neon); }
+
+    #mode-label {
+      position: absolute; top:10px; left:14px;
+      font-family:'Orbitron',sans-serif; font-size:0.58rem;
+      color:var(--neon2); letter-spacing:0.15em; z-index:20;
+      background:rgba(5,10,18,0.8); padding:3px 8px;
+      border:1px solid rgba(255,0,200,0.3); border-radius:2px;
+    }
+    #fps-label {
+      position:absolute; top:10px; right:14px;
+      font-size:0.62rem; color:var(--neon); z-index:20;
+      background:rgba(5,10,18,0.8); padding:3px 8px;
+      border:1px solid rgba(0,255,231,0.2); border-radius:2px;
+    }
+
+    /* AR overlay UI */
+    #ar-overlay {
+      display: none;
+      position: fixed; inset: 0; z-index: 1000;
+      pointer-events: none;
+    }
+    #ar-overlay.active { display: block; }
+    #ar-hint {
+      position: absolute; bottom: 100px; left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.7); color: #fff;
+      font-family: 'Orbitron', sans-serif; font-size: 0.7rem;
+      padding: 10px 20px; border-radius: 20px;
+      border: 1px solid var(--neon); letter-spacing: 0.1em;
+      pointer-events: none; text-align: center;
+    }
+    #ar-place-btn {
+      position: absolute; bottom: 30px; left: 50%;
+      transform: translateX(-50%);
+      background: var(--neon); color: #000;
+      font-family: 'Orbitron', sans-serif; font-size: 0.75rem;
+      font-weight: 700; letter-spacing: 0.12em;
+      padding: 14px 32px; border: none; border-radius: 3px;
+      cursor: pointer; pointer-events: all;
+      display: none; text-transform: uppercase;
+    }
+    #exit-ar-btn {
+      position: absolute; top: 20px; right: 20px;
+      background: rgba(255,0,200,0.2); color: var(--neon2);
+      font-family: 'Orbitron', sans-serif; font-size: 0.65rem;
+      font-weight: 700; letter-spacing: 0.1em;
+      padding: 10px 18px; border: 1px solid var(--neon2); border-radius: 3px;
+      cursor: pointer; pointer-events: all; text-transform: uppercase;
+    }
+
+    /* Reticle crosshair */
+    #reticle-hint {
+      position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 50px; height: 50px; pointer-events: none;
+    }
+    #reticle-hint::before, #reticle-hint::after {
+      content: ''; position: absolute;
+      background: var(--neon); border-radius: 2px;
+    }
+    #reticle-hint::before { width: 2px; height: 100%; left: 50%; top: 0; transform: translateX(-50%); }
+    #reticle-hint::after  { width: 100%; height: 2px; top: 50%; left: 0; transform: translateY(-50%); }
+
+    .controls {
+      position: relative; z-index: 10; max-width: 860px;
+      margin: 14px auto 0; display: flex; gap: 8px;
+      flex-wrap: wrap; justify-content: center; padding: 0 16px;
+    }
+    .btn {
+      font-family: 'Orbitron', sans-serif; font-size: 0.65rem;
+      letter-spacing: 0.1em; font-weight: 700; padding: 9px 18px;
+      border: 1px solid var(--neon); background: transparent;
+      color: var(--neon); cursor: pointer; border-radius: 2px;
+      transition: all 0.2s; text-transform: uppercase;
+    }
+    .btn:hover { background: rgba(0,255,231,0.1); box-shadow: 0 0 16px rgba(0,255,231,0.3); }
+    .btn.active { background: rgba(0,255,231,0.15); box-shadow: 0 0 20px rgba(0,255,231,0.4); }
+    .btn.accent { border-color: var(--neon2); color: var(--neon2); }
+    .btn.accent:hover { background: rgba(255,0,200,0.1); box-shadow: 0 0 16px rgba(255,0,200,0.3); }
+
+    /* Status box */
+    #status-box {
+      position: relative; z-index: 10; max-width: 860px;
+      margin: 14px auto 0; padding: 0 16px;
+    }
+    #status-msg {
+      background: var(--mid); border: 1px solid rgba(0,255,231,0.2);
+      border-radius: 3px; padding: 10px 16px;
+      font-size: 0.7rem; line-height: 1.6; color: var(--neon);
+      min-height: 40px;
+    }
+
+    .panels {
+      position: relative; z-index: 10; max-width: 860px;
+      margin: 14px auto 40px; display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px; padding: 0 16px;
+    }
+    .panel {
+      background: var(--mid); border: 1px solid rgba(0,255,231,0.15);
+      border-radius: 3px; padding: 14px 16px;
+    }
+    .panel-title {
+      font-family: 'Orbitron', sans-serif; font-size: 0.62rem;
+      color: var(--neon); letter-spacing: 0.18em;
+      margin-bottom: 9px; text-transform: uppercase;
+    }
+    .panel p, .panel li { font-size: 0.7rem; line-height: 1.7; opacity: 0.7; }
+    .panel ul { padding-left: 14px; }
+    .stat-row {
+      display: flex; justify-content: space-between;
+      font-size: 0.66rem; padding: 4px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .stat-row span:last-child { color: var(--neon); }
+
+    /* HTTPS warning */
+    #https-warn {
+      display: none; position: relative; z-index: 10;
+      max-width: 860px; margin: 10px auto 0; padding: 0 16px;
+    }
+    #https-warn div {
+      background: rgba(255,100,0,0.15); border: 1px solid rgba(255,100,0,0.5);
+      border-radius: 3px; padding: 12px 16px; font-size: 0.7rem; line-height: 1.7;
+      color: #ffaa44;
+    }
+  </style>
+</head>
+<body>
+
+<!-- AR Overlay (shown during AR session) -->
+<div id="ar-overlay">
+  <div id="reticle-hint"></div>
+  <div id="ar-hint">📷 Move phone slowly — detecting surface...</div>
+  <button id="ar-place-btn" onclick="placeObject()">📌 Place Object Here</button>
+  <button id="exit-ar-btn" onclick="exitAR()">✕ Exit AR</button>
+</div>
+
+<header>
+  <h1>WebXR — AR / VR App</h1>
+  <p>University Assignment · Three.js + WebXR API</p>
+</header>
+
+<!-- HTTPS Warning -->
+<div id="https-warn">
+  <div>
+    ⚠️ <strong>AR/VR requires HTTPS.</strong> You're on HTTP.<br>
+    Run: <code>http-server -p 8080 --cors -S -C cert.pem -K key.pem</code>
+    or use the <strong>ngrok tunnel method</strong> below for instant HTTPS.
+  </div>
+</div>
+
+<div id="canvas-wrap">
+  <div class="corner tl"></div><div class="corner tr"></div>
+  <div class="corner bl"></div><div class="corner br"></div>
+  <div id="mode-label">● 3D PREVIEW</div>
+  <div id="fps-label">-- FPS</div>
+</div>
+
+<div class="controls">
+  <button class="btn active" onclick="setShape('cube',this)">▣ Cube</button>
+  <button class="btn" onclick="setShape('sphere',this)">◉ Sphere</button>
+  <button class="btn" onclick="setShape('torus',this)">◎ Torus</button>
+  <button class="btn" onclick="toggleWireframe()">⊡ Wire</button>
+  <button class="btn accent" id="ar-btn" onclick="startAR()">📷 Enter AR</button>
+  <button class="btn accent" id="vr-btn" onclick="startVR()">🥽 Enter VR</button>
+</div>
+
+<div id="status-box">
+  <div id="status-msg">✅ 3D scene ready. Checking AR/VR support...</div>
+</div>
+
+<div class="panels">
+  <div class="panel">
+    <div class="panel-title">📡 Scene Info</div>
+    <div class="stat-row"><span>Engine</span><span>Three.js r128</span></div>
+    <div class="stat-row"><span>Renderer</span><span>WebGL 2</span></div>
+    <div class="stat-row"><span>XR Mode</span><span id="xr-status">3D Preview</span></div>
+    <div class="stat-row"><span>AR Support</span><span id="ar-support">Checking...</span></div>
+    <div class="stat-row"><span>VR Support</span><span id="vr-support">Checking...</span></div>
+  </div>
+  <div class="panel">
+    <div class="panel-title">🕹️ How To Use</div>
+    <ul>
+      <li>Drag → Rotate 3D view</li>
+      <li>Scroll → Zoom in/out</li>
+      <li>📷 Enter AR → iPhone camera</li>
+      <li>Move phone to detect surface</li>
+      <li>Tap "Place Object" → drops 3D object</li>
+      <li>🥽 Enter VR → Oculus headset</li>
+    </ul>
+  </div>
+  <div class="panel">
+    <div class="panel-title">⚙️ How It Works</div>
+    <p>
+      Three.js builds a 3D scene using WebGL on your GPU.
+      WebXR API connects it to your iPhone camera (AR) or Oculus headset (VR).
+      Hit-test detects real flat surfaces so 3D objects sit on your table or floor.
+    </p>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ── SETUP ──────────────────────────────────────
+const wrap = document.getElementById('canvas-wrap');
+const statusMsg = document.getElementById('status-msg');
+
+function setStatus(msg) { statusMsg.innerHTML = msg; }
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x050a12);
+scene.fog = new THREE.Fog(0x050a12, 10, 50);
+
+const camera = new THREE.PerspectiveCamera(60, wrap.clientWidth / wrap.clientHeight, 0.01, 100);
+camera.position.set(0, 1.5, 4);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setSize(wrap.clientWidth, wrap.clientHeight);
+renderer.shadowMap.enabled = true;
+renderer.xr.enabled = true;
+wrap.appendChild(renderer.domElement);
+
+// ── LIGHTS ──────────────────────────────────────
+scene.add(new THREE.AmbientLight(0xffffff, 1.2));
+const pointLight = new THREE.PointLight(0x00ffe7, 2, 20);
+pointLight.position.set(3, 4, 3);
+pointLight.castShadow = true;
+scene.add(pointLight);
+const pointLight2 = new THREE.PointLight(0xff00c8, 1.5, 15);
+pointLight2.position.set(-3, 2, -3);
+scene.add(pointLight2);
+
+// Grid
+const gridHelper = new THREE.GridHelper(20, 30, 0x00ffe7, 0x0d1a2a);
+gridHelper.material.opacity = 0.25; gridHelper.material.transparent = true;
+scene.add(gridHelper);
+
+// ── MAIN OBJECT ──────────────────────────────────────
+const material = new THREE.MeshStandardMaterial({ color:0x00ffe7, metalness:0.7, roughness:0.2, emissive:0x002222 });
+let mesh, currentShape = 'cube';
+
+function createMesh(type) {
+  if (mesh) scene.remove(mesh);
+  currentShape = type;
+  let geo;
+  if (type === 'cube')   geo = new THREE.BoxGeometry(0.15, 0.15, 0.15);
+  if (type === 'sphere') geo = new THREE.SphereGeometry(0.1, 32, 32);
+  if (type === 'torus')  geo = new THREE.TorusGeometry(0.09, 0.035, 24, 80);
+  mesh = new THREE.Mesh(geo, material);
+  mesh.castShadow = true;
+  mesh.position.set(0, 0.5, 0); // default position in 3D preview
+  scene.add(mesh);
+}
+createMesh('cube');
+
+function setShape(type, btn) {
+  createMesh(type);
+  document.querySelectorAll('.btn:not(.accent)').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+}
+
+let wireframeOn = false;
+function toggleWireframe() { wireframeOn = !wireframeOn; material.wireframe = wireframeOn; }
+
+// ── ORBIT CONTROLS ──────────────────────────────────────
+let isDragging = false, prevMouse = {x:0,y:0};
+let rotX = 0, rotY = 0, zoom = 4;
+wrap.addEventListener('mousedown', e => { isDragging = true; prevMouse = {x:e.clientX,y:e.clientY}; });
+window.addEventListener('mouseup', () => isDragging = false);
+window.addEventListener('mousemove', e => {
+  if (!isDragging) return;
+  rotY += (e.clientX - prevMouse.x) * 0.008;
+  rotX += (e.clientY - prevMouse.y) * 0.008;
+  rotX = Math.max(-1.2, Math.min(1.2, rotX));
+  prevMouse = {x:e.clientX, y:e.clientY};
+});
+wrap.addEventListener('wheel', e => { zoom += e.deltaY*0.005; zoom = Math.max(1.5, Math.min(10, zoom)); });
+let lastTouch = null;
+wrap.addEventListener('touchstart', e => { lastTouch = e.touches[0]; });
+wrap.addEventListener('touchmove', e => {
+  if (!lastTouch) return;
+  const t = e.touches[0];
+  rotY += (t.clientX - lastTouch.clientX) * 0.01;
+  rotX += (t.clientY - lastTouch.clientY) * 0.01;
+  lastTouch = t; e.preventDefault();
+}, {passive:false});
+
+// ── AR HIT TEST ──────────────────────────────────────
+let xrSession = null;
+let hitTestSource = null;
+let hitTestSourceRequested = false;
+let reticle = null;       // 3D reticle shown on detected surface
+let objectPlaced = false;
+let arMesh = null;        // The placed AR object
+
+function buildReticle() {
+  const geo = new THREE.RingGeometry(0.04, 0.05, 32).rotateX(-Math.PI / 2);
+  const mat = new THREE.MeshBasicMaterial({ color: 0x00ffe7, side: THREE.DoubleSide });
+  reticle = new THREE.Mesh(geo, mat);
+  reticle.matrixAutoUpdate = false;
+  reticle.visible = false;
+  scene.add(reticle);
+}
+buildReticle();
+
+async function startAR() {
+  if (!navigator.xr) {
+    setStatus('❌ WebXR not available. Use WebXR Viewer app on iPhone.');
+    return;
+  }
+  const supported = await navigator.xr.isSessionSupported('immersive-ar').catch(() => false);
+  if (!supported) {
+    setStatus('❌ AR not supported. Make sure you are using WebXR Viewer app and serving over HTTPS.');
+    return;
+  }
+
+  try {
+    xrSession = await navigator.xr.requestSession('immersive-ar', {
+      requiredFeatures: ['hit-test'],
+      optionalFeatures: ['dom-overlay', 'light-estimation'],
+      domOverlay: { root: document.getElementById('ar-overlay') }
+    });
+
+    renderer.xr.setReferenceSpaceType('local');
+    await renderer.xr.setSession(xrSession);
+
+    scene.background = null; // transparent — shows camera feed
+    gridHelper.visible = false;
+    if (mesh) { mesh.visible = false; } // hide preview mesh
+
+    objectPlaced = false;
+    hitTestSourceRequested = false;
+    hitTestSource = null;
+
+    document.getElementById('ar-overlay').classList.add('active');
+    document.getElementById('mode-label').textContent = '● AR MODE';
+    document.getElementById('xr-status').textContent = 'Immersive AR';
+    setStatus('📷 AR session started! Move your iPhone over a flat surface...');
+
+    xrSession.addEventListener('end', onARSessionEnd);
+  } catch(e) {
+    setStatus('❌ AR Error: ' + e.message);
+  }
+}
+
+function onARSessionEnd() {
+  xrSession = null;
+  hitTestSource = null;
+  hitTestSourceRequested = false;
+  objectPlaced = false;
+  if (arMesh) { scene.remove(arMesh); arMesh = null; }
+  reticle.visible = false;
+  scene.background = new THREE.Color(0x050a12);
+  gridHelper.visible = true;
+  if (mesh) mesh.visible = true;
+  document.getElementById('ar-overlay').classList.remove('active');
+  document.getElementById('ar-place-btn').style.display = 'none';
+  document.getElementById('mode-label').textContent = '● 3D PREVIEW';
+  document.getElementById('xr-status').textContent = '3D Preview';
+  setStatus('✅ AR session ended. Back to 3D preview.');
+}
+
+function exitAR() {
+  if (xrSession) xrSession.end();
+}
+
+function placeObject() {
+  if (!reticle.visible) return;
+  // Clone mesh at reticle position
+  if (arMesh) scene.remove(arMesh);
+  let geo;
+  if (currentShape === 'cube')   geo = new THREE.BoxGeometry(0.15, 0.15, 0.15);
+  if (currentShape === 'sphere') geo = new THREE.SphereGeometry(0.1, 32, 32);
+  if (currentShape === 'torus')  geo = new THREE.TorusGeometry(0.09, 0.035, 24, 80);
+  arMesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color:0x00ffe7, metalness:0.7, roughness:0.2, emissive:0x002222 }));
+  arMesh.position.setFromMatrixPosition(reticle.matrix);
+  arMesh.position.y += 0.08;
+  scene.add(arMesh);
+  objectPlaced = true;
+  document.getElementById('ar-hint').textContent = '✅ Object placed! Move phone to view from different angles.';
+  document.getElementById('ar-place-btn').style.display = 'none';
+}
+
+// ── VR ──────────────────────────────────────
+async function startVR() {
+  if (!navigator.xr) {
+    setStatus('❌ WebXR not available. Use Meta Browser inside Oculus headset.');
+    return;
+  }
+  const supported = await navigator.xr.isSessionSupported('immersive-vr').catch(() => false);
+  if (!supported) {
+    setStatus('❌ VR not supported. Open this page inside the Meta Browser on your Oculus headset.');
+    return;
+  }
+  try {
+    const session = await navigator.xr.requestSession('immersive-vr', {
+      optionalFeatures: ['local-floor', 'bounded-floor', 'hand-tracking']
+    });
+    renderer.xr.setReferenceSpaceType('local-floor');
+    await renderer.xr.setSession(session);
+    document.getElementById('mode-label').textContent = '● VR MODE';
+    document.getElementById('xr-status').textContent = 'Immersive VR';
+    setStatus('🥽 VR session active! Look around with your headset.');
+    session.addEventListener('end', () => {
+      document.getElementById('mode-label').textContent = '● 3D PREVIEW';
+      document.getElementById('xr-status').textContent = '3D Preview';
+      setStatus('✅ VR session ended.');
+    });
+  } catch(e) {
+    setStatus('❌ VR Error: ' + e.message);
+  }
+}
+
+// ── CHECK SUPPORT ON LOAD ──────────────────────────────────────
+window.addEventListener('load', async () => {
+  if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+    document.getElementById('https-warn').style.display = 'block';
+  }
+  if (navigator.xr) {
+    const arOk = await navigator.xr.isSessionSupported('immersive-ar').catch(() => false);
+    const vrOk = await navigator.xr.isSessionSupported('immersive-vr').catch(() => false);
+    document.getElementById('ar-support').textContent = arOk ? '✅ Supported' : '❌ Not supported';
+    document.getElementById('vr-support').textContent = vrOk ? '✅ Supported' : '❌ Not supported';
+    setStatus(
+      arOk || vrOk
+        ? '✅ XR supported! Tap Enter AR or Enter VR to begin.'
+        : '⚠️ XR not detected. For AR: use WebXR Viewer app on iPhone. For VR: open in Meta Browser on Oculus.'
+    );
+  } else {
+    document.getElementById('ar-support').textContent = '❌ No WebXR';
+    document.getElementById('vr-support').textContent = '❌ No WebXR';
+    setStatus('⚠️ WebXR not available in this browser. For AR use WebXR Viewer. For VR use Meta Browser on Oculus.');
+  }
+});
+
+// ── PARTICLES ──────────────────────────────────────
+const pGeo = new THREE.BufferGeometry();
+const pPos = new Float32Array(300 * 3);
+for (let i = 0; i < 300*3; i++) pPos[i] = (Math.random()-0.5)*20;
+pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
+scene.add(new THREE.Points(pGeo, new THREE.PointsMaterial({ color:0x00ffe7, size:0.04, transparent:true, opacity:0.4 })));
+
+// ── ANIMATION LOOP ──────────────────────────────────────
+let lastTime = performance.now(), frameCount = 0;
+const fpsLabel = document.getElementById('fps-label');
+
+renderer.setAnimationLoop((time, frame) => {
+  // FPS
+  frameCount++;
+  if (time - lastTime > 500) {
+    fpsLabel.textContent = Math.round(frameCount / ((time-lastTime)/1000)) + ' FPS';
+    frameCount = 0; lastTime = time;
+  }
+
+  // Rotate objects
+  if (mesh && mesh.visible) { mesh.rotation.x += 0.005; mesh.rotation.y += 0.009; }
+  if (arMesh) { arMesh.rotation.y += 0.012; }
+
+  // AR hit test
+  if (frame && renderer.xr.isPresenting) {
+    const session = renderer.xr.getSession();
+    const refSpace = renderer.xr.getReferenceSpace();
+
+    // Request hit test source once
+    if (!hitTestSourceRequested) {
+      session.requestReferenceSpace('viewer').then(viewerSpace => {
+        session.requestHitTestSource({ space: viewerSpace }).then(src => {
+          hitTestSource = src;
+          document.getElementById('ar-hint').textContent = '✅ Surface detected! Aim at flat area and tap Place.';
+          document.getElementById('ar-place-btn').style.display = 'block';
+        }).catch(() => {
+          document.getElementById('ar-hint').textContent = '⚠️ Move phone slowly over a flat, well-lit surface...';
+        });
+      }).catch(() => {});
+      hitTestSourceRequested = true;
+    }
+
+    // Get hit test results
+    if (hitTestSource && refSpace) {
+      const results = frame.getHitTestResults(hitTestSource);
+      if (results.length > 0) {
+        const hit = results[0];
+        const pose = hit.getPose(refSpace);
+        if (pose) {
+          reticle.visible = true;
+          reticle.matrix.fromArray(pose.transform.matrix);
+          if (!objectPlaced) {
+            document.getElementById('ar-place-btn').style.display = 'block';
+          }
+        }
+      } else {
+        reticle.visible = false;
+      }
+    }
+  }
+
+  // Camera orbit (non-XR)
+  if (!renderer.xr.isPresenting) {
+    camera.position.x = Math.sin(rotY) * zoom;
+    camera.position.z = Math.cos(rotY) * zoom;
+    camera.position.y = Math.sin(rotX) * zoom * 0.5 + 1.5;
+    camera.lookAt(0, 0.5, 0);
+  }
+
+  pointLight.intensity = 2 + Math.sin(time * 0.002) * 0.8;
+  renderer.render(scene, camera);
+});
+
+// Resize
+window.addEventListener('resize', () => {
+  camera.aspect = wrap.clientWidth / wrap.clientHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(wrap.clientWidth, wrap.clientHeight);
+});
+</script>
+</body>
+</html>

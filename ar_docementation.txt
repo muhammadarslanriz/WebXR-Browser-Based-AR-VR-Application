@@ -1,0 +1,33 @@
+Option 2 — Local server (required for AR/VR mode):
+AR and VR require HTTPS, so you need a local server:
+bash# If you have Python installed:
+python -m http.server 8000
+# Then open: http://localhost:8000/ar-vr-app.html
+Or use the VS Code Live Server extension.
+
+🔧 How It Works (for your assignment)
+3 core technologies:
+LayerTechnologyJob3D GraphicsThree.jsDraws the cube/sphere/torus using WebGLXR BridgeWebXR APIConnects the scene to a phone camera (AR) or headset (VR)RenderingWebGL 2GPU draws 60 frames per second
+The basic flow:
+
+THREE.Scene → a container that holds all 3D objects
+THREE.Camera → your "eye" looking into the scene
+THREE.Renderer → draws the scene onto the <canvas> element
+Animation loop → runs 60×/second, rotates objects, updates camera
+
+
+📱 Testing AR/VR
+
+AR → Chrome browser on an Android phone (point camera at flat surface)
+VR → Connect a Meta Quest headset, or install the WebXR Emulator Chrome extension to test on desktop
+3D Preview → Works on ANY browser right now, no device needed
+
+
+🎮 What You Can Do in the App
+
+Drag the scene to rotate the view
+Scroll to zoom in/out
+Switch shapes — Cube, Sphere, Torus
+Toggle Wireframe — shows the mesh structure
+Enter AR — overlays the 3D object on your real camera
+Enter VR — full immersive mode with a headset

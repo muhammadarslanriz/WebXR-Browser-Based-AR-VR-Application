@@ -1,0 +1,39 @@
+🚀 Quick Restart Guide for Demo
+Every time you want to run the app, do these steps in order:
+Step 1 — Open CMD Window 1 (Server)
+
+cd "C:\Users\arsla\OneDrive\Desktop\HCI projects\ar-vr-app"
+http-server -p 8080 --cors
+
+Leave this window open.
+Step 2 — Open CMD Window 2 (ngrok)
+
+ngrok http 8080
+
+Leave this window open too.
+Step 3 — Open on iPhone
+Open WebXR Viewer → type:
+
+https://curly-unbeaten-sterility.ngrok-free.dev
+
+Step 4 — Open on Oculus
+Open Meta Browser inside headset → type the same link.
+
+⚠️ Important Notes
+
+You need 2 CMD windows open at the same time — one for the server, one for ngrok
+Your ngrok link might change each time on the free plan. If it does, just copy the new https://xxxx.ngrok-free.dev link from CMD Window 2
+Keep both CMD windows open during your demo — closing either one kills the app
+Your PC, iPhone, and Oculus must all be on the same WiFi
+
+
+📋 Demo Day Checklist
+
+ PC connected to WiFi
+ Run http-server (CMD 1)
+ Run ngrok (CMD 2)
+ Note the ngrok https link
+ iPhone on same WiFi → WebXR Viewer → paste link
+ Oculus on same WiFi → Meta Browser → paste link
+
+That's all you need! Good luck with your demo! 🎉
